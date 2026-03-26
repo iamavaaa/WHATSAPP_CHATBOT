@@ -1,4 +1,5 @@
 import os
+import logging
 from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
@@ -9,6 +10,7 @@ from pinecone import Pinecone
 
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 
 class RAGEngine:
@@ -109,7 +111,8 @@ class RAGEngine:
                     text = metadata.get("text", "") if isinstance(metadata, dict) else ""
                     if text:
                         docs.append(text)
-            except Exception:
+            except Exception as exc:
+                logger.exception("Pinecone retrieval failed: %s", exc)
                 docs = []
         elif self._retriever:
             docs = [doc.page_content for doc in self._retriever.invoke(query)]
@@ -122,8 +125,8 @@ class RAGEngine:
 You are a WhatsApp support assistant using RAG.
 
 Rules:
-- Use only the provided context when possible.
-- If context is missing, say you are not sure and ask for clarification.
+- Prioritize the provided context when it is relevant.
+- If context is missing or weak, answer using your general knowledge and clearly say it is a general answer.
 - Keep answers concise and readable for WhatsApp.
 - Use bullet points when listing items.
 
