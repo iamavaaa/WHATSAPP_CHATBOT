@@ -10,4 +10,5 @@ chromadb
 flask
 python-dotenv
 twilio
+gunicorn
 

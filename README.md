@@ -79,3 +79,22 @@ User (WhatsApp) -> Twilio -> Flask (`/whatsapp`) -> RAG retrieval (ChromaDB) -> 
 - Retrieval uses local ChromaDB built from cleaned Common Crawl sample.
 - Generation uses Gemini via `GOOGLE_API_KEY`.
 - For production scale, replace in-memory history with Redis/Postgres and add queue/retry logic.
+
+## Railway Deployment
+
+1. Push this project to GitHub.
+2. In Railway, click **New Project** -> **Deploy from GitHub repo**.
+3. Add environment variables in Railway project settings:
+   - `GOOGLE_API_KEY=your_gemini_api_key`
+   - `GEMINI_MODEL=gemini-1.5-flash`
+   - `CHROMA_DB_DIR=data/chroma_db`
+4. Railway uses the `Procfile` start command automatically:
+   - `gunicorn src.app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120`
+5. Once deployed, copy Railway public URL and set Twilio webhook to:
+   - `https://<railway-domain>/whatsapp`
+   - Method: `POST`
+
+### Important
+
+- If `data/chroma_db` is not present in deployment, retrieval will have no indexed context.
+- For production, use a managed vector DB (Pinecone/Qdrant/pgvector) instead of local filesystem storage.
