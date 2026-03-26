@@ -35,8 +35,8 @@ class RAGEngine:
     def _init_retriever(self) -> None:
         use_pinecone = os.getenv("USE_PINECONE", "true").lower() == "true"
         if use_pinecone:
-            pinecone_api_key = os.getenv("PINECONE_API_KEY")
-            pinecone_index_name = os.getenv("PINECONE_INDEX_NAME")
+            pinecone_api_key = (os.getenv("PINECONE_API_KEY") or "").strip()
+            pinecone_index_name = (os.getenv("PINECONE_INDEX_NAME") or "").strip()
             if pinecone_api_key and pinecone_index_name:
                 pc = Pinecone(api_key=pinecone_api_key)
                 self._pinecone_index = pc.Index(pinecone_index_name)
