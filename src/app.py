@@ -15,7 +15,15 @@ except ModuleNotFoundError:
 load_dotenv()
 
 app = Flask(__name__)
-rag = RAGEngine()
+rag = None
+
+
+def get_rag() -> RAGEngine:
+    global rag
+    if rag is None:
+        app.logger.info("Initializing RAG engine...")
+        rag = RAGEngine()
+    return rag
 
 
 @app.get("/")
@@ -39,7 +47,7 @@ def _whatsapp_reply() -> str:
         reply_text = "Please send a message so I can help."
     else:
         try:
-            reply_text = rag.answer(user_id=user_id, query=incoming_text)
+            reply_text = get_rag().answer(user_id=user_id, query=incoming_text)
         except Exception as exc:
             # Keep user-facing message safe, but log exact error server-side.
             app.logger.exception("RAG generation failed: %s", exc)
