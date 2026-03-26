@@ -98,3 +98,48 @@ User (WhatsApp) -> Twilio -> Flask (`/whatsapp`) -> RAG retrieval (ChromaDB) -> 
 
 - If `data/chroma_db` is not present in deployment, retrieval will have no indexed context.
 - For production, use a managed vector DB (Pinecone/Qdrant/pgvector) instead of local filesystem storage.
+
+## Pinecone (Production-Grade Retrieval)
+
+This project supports Pinecone as a managed vector database for deployment environments.
+
+### 1) Create and Populate Pinecone Index
+
+Set env vars locally in `.env`:
+
+```bash
+PINECONE_API_KEY=your_pinecone_api_key
+PINECONE_INDEX_NAME=whatsapp-rag-index
+GOOGLE_API_KEY=your_gemini_api_key
+LOCAL_EMBED_MODEL=all-MiniLM-L6-v2
+```
+
+Run:
+
+```bash
+cd scripts
+python build_pinecone_index.py
+```
+
+If the script says the index is missing, create it once in Pinecone Console:
+
+- Type: **Serverless**
+- Name: `whatsapp-rag-index` (or your `PINECONE_INDEX_NAME`)
+- Dimension: `1536`
+- Metric: `cosine`
+- Cloud/Region: any supported starter option
+
+### 2) Enable Pinecone in App
+
+In deployment env vars (Render/Railway):
+
+```bash
+USE_PINECONE=true
+PINECONE_API_KEY=...
+PINECONE_INDEX_NAME=whatsapp-rag-index
+LOCAL_EMBED_MODEL=all-MiniLM-L6-v2
+GOOGLE_API_KEY=...
+GEMINI_MODEL=gemini-1.5-flash
+```
+
+With this setup, retrieval comes from Pinecone and no local `data/chroma_db` is required.

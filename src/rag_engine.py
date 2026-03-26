@@ -1,10 +1,11 @@
 import os
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
 from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
+from pinecone import Pinecone
 
 
 load_dotenv()
@@ -14,21 +15,11 @@ class RAGEngine:
     """RAG engine with simple in-memory conversation history per user."""
 
     def __init__(self) -> None:
-        # Render/free serverless-like environments can time out if we load local
-        # embedding + vector DB eagerly. Allow disabling local retrieval by env.
-        render_env = os.getenv("RENDER", "")
-        use_local_vector_default = "false" if render_env else "true"
-        use_local_vector = os.getenv("USE_LOCAL_VECTOR_DB", use_local_vector_default).lower() == "true"
-
-        self._retriever = None
-        if use_local_vector:
-            chroma_dir = os.getenv("CHROMA_DB_DIR", "data/chroma_db")
-            self._embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-            self._vector_db = Chroma(
-                persist_directory=chroma_dir,
-                embedding_function=self._embeddings,
-            )
-            self._retriever = self._vector_db.as_retriever(search_kwargs={"k": 4})
+        self._retriever: Optional[object] = None
+        self._pinecone_index = None
+        self._pinecone_namespace = os.getenv("PINECONE_NAMESPACE", "")
+        self._pinecone_embedder: Optional[HuggingFaceEmbeddings] = None
+        self._init_retriever()
 
         self._llm = ChatGoogleGenerativeAI(
             model=os.getenv("GEMINI_MODEL", "gemini-1.5-flash"),
@@ -39,7 +30,33 @@ class RAGEngine:
         self._max_context_chars = 3500
         self._max_history_chars = 1200
 
-    def _fallback_from_context(self, docs: list) -> str:
+    def _init_retriever(self) -> None:
+        use_pinecone = os.getenv("USE_PINECONE", "true").lower() == "true"
+        if use_pinecone:
+            pinecone_api_key = os.getenv("PINECONE_API_KEY")
+            pinecone_index_name = os.getenv("PINECONE_INDEX_NAME")
+            if pinecone_api_key and pinecone_index_name:
+                pc = Pinecone(api_key=pinecone_api_key)
+                self._pinecone_index = pc.Index(pinecone_index_name)
+                self._pinecone_embedder = HuggingFaceEmbeddings(
+                    model_name=os.getenv("LOCAL_EMBED_MODEL", "all-MiniLM-L6-v2")
+                )
+                return
+
+        # Fallback: local vector DB (useful for local development)
+        render_env = os.getenv("RENDER", "")
+        use_local_vector_default = "false" if render_env else "true"
+        use_local_vector = os.getenv("USE_LOCAL_VECTOR_DB", use_local_vector_default).lower() == "true"
+        if use_local_vector:
+            chroma_dir = os.getenv("CHROMA_DB_DIR", "data/chroma_db")
+            embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+            vector_db = Chroma(
+                persist_directory=chroma_dir,
+                embedding_function=embeddings,
+            )
+            self._retriever = vector_db.as_retriever(search_kwargs={"k": 4})
+
+    def _fallback_from_context(self, docs: list[str]) -> str:
         """
         Used when the LLM is rate-limited/quota-exhausted.
         Keeps the WhatsApp demo working by answering directly from retrieved text.
@@ -50,7 +67,7 @@ class RAGEngine:
                 "Could you clarify your question a bit?"
             )
 
-        top = docs[0].page_content or ""
+        top = docs[0] or ""
         snippet = top.strip()
         if len(snippet) > self._max_context_chars:
             snippet = snippet[: self._max_context_chars] + "..."
@@ -76,8 +93,28 @@ class RAGEngine:
             self._history[user_id] = turns[-self._max_turns * 2 :]
 
     def answer(self, user_id: str, query: str) -> str:
-        docs = self._retriever.invoke(query) if self._retriever else []
-        context = "\n\n".join(doc.page_content for doc in docs) if docs else "No relevant context found."
+        docs: list[str] = []
+        if self._pinecone_index is not None and self._pinecone_embedder is not None:
+            try:
+                query_vec = self._pinecone_embedder.embed_query(query)
+                result = self._pinecone_index.query(
+                    vector=query_vec,
+                    top_k=4,
+                    include_metadata=True,
+                    namespace=self._pinecone_namespace,
+                )
+                matches = result.get("matches", []) if isinstance(result, dict) else getattr(result, "matches", [])
+                for item in matches:
+                    metadata = item.get("metadata", {}) if isinstance(item, dict) else getattr(item, "metadata", {})
+                    text = metadata.get("text", "") if isinstance(metadata, dict) else ""
+                    if text:
+                        docs.append(text)
+            except Exception:
+                docs = []
+        elif self._retriever:
+            docs = [doc.page_content for doc in self._retriever.invoke(query)]
+
+        context = "\n\n".join(docs) if docs else "No relevant context found."
         if len(context) > self._max_context_chars:
             context = context[: self._max_context_chars] + "..."
 
