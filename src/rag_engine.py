@@ -14,13 +14,22 @@ class RAGEngine:
     """RAG engine with simple in-memory conversation history per user."""
 
     def __init__(self) -> None:
-        chroma_dir = os.getenv("CHROMA_DB_DIR", "data/chroma_db")
-        self._embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-        self._vector_db = Chroma(
-            persist_directory=chroma_dir,
-            embedding_function=self._embeddings,
-        )
-        self._retriever = self._vector_db.as_retriever(search_kwargs={"k": 4})
+        # Render/free serverless-like environments can time out if we load local
+        # embedding + vector DB eagerly. Allow disabling local retrieval by env.
+        render_env = os.getenv("RENDER", "")
+        use_local_vector_default = "false" if render_env else "true"
+        use_local_vector = os.getenv("USE_LOCAL_VECTOR_DB", use_local_vector_default).lower() == "true"
+
+        self._retriever = None
+        if use_local_vector:
+            chroma_dir = os.getenv("CHROMA_DB_DIR", "data/chroma_db")
+            self._embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+            self._vector_db = Chroma(
+                persist_directory=chroma_dir,
+                embedding_function=self._embeddings,
+            )
+            self._retriever = self._vector_db.as_retriever(search_kwargs={"k": 4})
+
         self._llm = ChatGoogleGenerativeAI(
             model=os.getenv("GEMINI_MODEL", "gemini-1.5-flash"),
             temperature=0.2,
@@ -67,7 +76,7 @@ class RAGEngine:
             self._history[user_id] = turns[-self._max_turns * 2 :]
 
     def answer(self, user_id: str, query: str) -> str:
-        docs = self._retriever.invoke(query)
+        docs = self._retriever.invoke(query) if self._retriever else []
         context = "\n\n".join(doc.page_content for doc in docs) if docs else "No relevant context found."
         if len(context) > self._max_context_chars:
             context = context[: self._max_context_chars] + "..."
