@@ -6,6 +6,8 @@ __pycache__/
 .Python
 .venv/
 venv/
+.pytest_cache/
+.mypy_cache/
 
 # Environment / secrets
 .env
@@ -24,3 +26,4 @@ data/chroma_db/
 
 # Logs and runtime files
 *.log
+*.pid
