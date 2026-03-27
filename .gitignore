@@ -8,6 +8,11 @@ __pycache__/
 venv/
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+pip-wheel-metadata/
 
 # Environment / secrets
 .env
@@ -19,10 +24,16 @@ venv/
 Thumbs.db
 .vscode/
 .cursor/
+.idea/
 
 # Data and vector DB artifacts
 data/*.jsonl
 data/chroma_db/
+
+# Build / packaging artifacts
+build/
+dist/
+*.egg-info/
 
 # Logs and runtime files
 *.log
