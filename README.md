@@ -74,9 +74,16 @@ Create the index once in Pinecone (if missing):
 - Dimension: **384** (for `all-MiniLM-L6-v2`)
 - Metric: **cosine**
 
+### Pinecone console vs this app
+
+The dashboard **record count** and what the API sees must match when **`PINECONE_API_KEY` is from the same Pinecone project** as the org you have selected in the browser. Index names (for example `whatsapp-rag-index-384`) are **per project**—one project can have an empty index and another a full one with the same name.
+
+- If the UI shows **0 records** but `verify_setup.py` prints a **non-zero vector count**, your `.env` key is almost certainly tied to a **different** project. Fix: in Pinecone, open **API keys** for the org/project you care about, create or copy a key there, and set `PINECONE_API_KEY` in `.env` (never commit it).
+- If **both** show zero, populate the index: set `RAG_DATA_JSONL` and run `python scripts/build_pinecone_index.py` (from repo root or `scripts/`; `.env` is always loaded from the repo root).
+
 ### Verify configuration
 
-From repo root (checks `.env` and JSONL paths; optional Pinecone index hint):
+From repo root (checks `.env` and JSONL paths; calls Pinecone and prints **vector count** for the configured index—no secrets):
 
 ```bash
 python scripts/verify_setup.py

@@ -81,6 +81,32 @@ def main() -> int:
                         f"Pinecone index '{idx_name}' not found in project. Create it in the console "
                         "or run: cd scripts && python build_pinecone_index.py"
                     )
+                else:
+                    stats = pc.Index(idx_name).describe_index_stats()
+                    total = 0
+                    dimension = None
+                    metric = None
+                    if isinstance(stats, dict):
+                        total = int(stats.get("total_vector_count") or 0)
+                        dimension = stats.get("dimension")
+                        metric = stats.get("metric")
+                    else:
+                        total = int(getattr(stats, "total_vector_count", 0) or 0)
+                        dimension = getattr(stats, "dimension", None)
+                        metric = getattr(stats, "metric", None)
+                    ns = os.getenv("PINECONE_NAMESPACE", "") or "(default)"
+                    dim_s = str(dimension) if dimension is not None else "?"
+                    met_s = str(metric) if metric is not None else "?"
+                    print(
+                        f"[INFO] Pinecone index '{idx_name}' (namespace={ns!r}): "
+                        f"total_vector_count={total}, dimension={dim_s}, metric={met_s}"
+                    )
+                    if total == 0:
+                        warnings.append(
+                            "Pinecone reports 0 vectors for this index. If the console shows records here "
+                            "but this says 0, your PINECONE_API_KEY likely belongs to a different Pinecone "
+                            "project than the browser. If both are 0, run: python scripts/build_pinecone_index.py"
+                        )
             except Exception as exc:
                 warnings.append(f"Pinecone API check skipped/failed: {exc!s}")
 
