@@ -42,7 +42,7 @@ pip install -r requirements.txt
 python scripts/prepare_commando_dataset.py
 ```
 
-This writes `data/raw_commando_crawl.jsonl` (target ~2.5GB of HTML, built with multiple polite passes over discovered URLs) and `data/commando_networks.jsonl` (deduplicated, filtered text up to ~50MB). Set `RAG_DATA_JSONL=data/commando_networks.jsonl` for indexing.
+This writes `data/raw_commando_crawl.jsonl` (target ~2.5GB of HTML, built with multiple polite passes over the same URLs) and `data/commando_networks.jsonl` (one merged extract per URL, split into overlapping chunks, capped at `COMMANDO_SAMPLE_MB`). **Raw gigabytes are mostly repeated HTML; unique text from a single domain is often only a few MB**—that is normal. Rebuild the sample without re-crawling: `python scripts/prepare_commando_dataset.py --clean-only`. Set `RAG_DATA_JSONL=data/commando_networks.jsonl` for indexing.
 
 Optional: add **`data/commando_curated_facts.jsonl`** to `RAG_DATA_JSONL` (comma-separated) only if you need guaranteed retrieval for facts that never appear as plain text on the site.
 

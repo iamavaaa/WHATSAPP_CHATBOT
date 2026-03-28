@@ -1,5 +1,5 @@
 """
-Build a large raw crawl from https://commandonetworks.com/ then clean down to ~50MB JSONL.
+Build a large raw crawl from https://commandonetworks.com/ then clean to a JSONL sample (up to COMMANDO_SAMPLE_MB).
 
 Parsing stack:
   - URL discovery: BeautifulSoup + ``html.parser`` (same as crawl_commando_site.py).
@@ -8,7 +8,7 @@ Parsing stack:
 
 Mirrors the Common Crawl workflow in this repo:
   1) Collect ~2–3GB of raw material (full HTML per fetch, multiple passes over the site).
-  2) Clean, quality-filter, dedupe, write ~50MB of {"text": ...} lines for embeddings/RAG.
+  2) Clean, quality-filter, merge by URL, chunk text, write JSONL up to COMMANDO_SAMPLE_MB (cap).
 
 Respect robots.txt and rate limits. Review site terms before running.
 
@@ -25,6 +25,9 @@ Env:
   COMMANDO_MAX_PASSES      safety cap on full-site repeat passes (default 800)
   COMMANDO_DISCOVERY_CAP   max unique URLs to discover (default 2500)
   COMMANDO_SITEMAP_CAP   max URLs pulled from sitemap.xml / robots Sitemap (default 5000)
+  COMMANDO_MIN_TEXT_LEN  min extracted chars per URL before quality rules (default 80)
+  COMMANDO_JSONLD_BRACE_MAX  drop pages whose text has more than this many "{" (JSON-LD); default 25
+  COMMANDO_CHUNK_SIZE / COMMANDO_CHUNK_OVERLAP / COMMANDO_MIN_CHUNK_CHARS  chunking for sample JSONL
 """
 
 from __future__ import annotations
@@ -64,7 +67,11 @@ MAX_PASSES = int(os.environ.get("COMMANDO_MAX_PASSES", "800"))
 DISCOVERY_CAP = int(os.environ.get("COMMANDO_DISCOVERY_CAP", "2500"))
 SITEMAP_CAP = int(os.environ.get("COMMANDO_SITEMAP_CAP", "5000"))
 
-MIN_TEXT_LEN_CLEAN = 200
+MIN_TEXT_LEN_CLEAN = int(os.environ.get("COMMANDO_MIN_TEXT_LEN", "80"))
+JSONLD_BRACE_MAX = int(os.environ.get("COMMANDO_JSONLD_BRACE_MAX", "25"))
+CHUNK_SIZE = int(os.environ.get("COMMANDO_CHUNK_SIZE", "900"))
+CHUNK_OVERLAP = int(os.environ.get("COMMANDO_CHUNK_OVERLAP", "180"))
+MIN_CHUNK_CHARS = int(os.environ.get("COMMANDO_MIN_CHUNK_CHARS", "60"))
 MIN_TEXT_LEN_RAW = 50  # still store HTML even if extract is tiny; HTML carries bytes
 
 _session = requests.Session()
@@ -271,28 +278,44 @@ def build_raw_corpus(urls: list[str]) -> None:
 def is_quality_content(text: str) -> bool:
     if len(text) < MIN_TEXT_LEN_CLEAN:
         return False
-    if text.count("{") > 5 or "<html" in text.lower():
+    # Product pages often embed JSON-LD; a low brace threshold dropped too many URLs.
+    if text.count("{") > JSONLD_BRACE_MAX or "<html" in text.lower():
         return False
     return True
 
 
+def _chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
+    """Sliding windows with step = chunk_size - overlap (clamped)."""
+    text = text.strip()
+    if not text:
+        return []
+    if len(text) <= chunk_size:
+        return [text]
+    step = max(1, chunk_size - overlap)
+    chunks: list[str] = []
+    i = 0
+    while i < len(text):
+        piece = text[i : i + chunk_size].strip()
+        if len(piece) >= MIN_CHUNK_CHARS:
+            chunks.append(piece)
+        i += step
+    return chunks
+
+
 def clean_to_sample() -> None:
-    """Stream raw JSONL -> deduped text JSONL up to TARGET_SAMPLE_BYTES."""
+    """
+    Build sample JSONL from raw crawl.
+
+    1) Merge all passes per URL (keep longest extract) so multi-GB raw does not collapse to few hashes.
+    2) Split each page into overlapping chunks for RAG recall.
+    3) Dedupe identical chunks only; stop at TARGET_SAMPLE_BYTES.
+    """
     if not RAW_PATH.is_file():
         raise FileNotFoundError(f"Missing raw file: {RAW_PATH}. Run without --clean-only first.")
 
-    seen_hashes: set[int] = set()
-    sample_bytes = 0
-    rows_out = 0
-
-    SAMPLE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    if SAMPLE_PATH.exists():
-        SAMPLE_PATH.unlink()
-
-    with open(RAW_PATH, "r", encoding="utf-8") as raw_in, open(
-        SAMPLE_PATH, "w", encoding="utf-8"
-    ) as out, tqdm(desc="Cleaning to sample", unit="B", unit_scale=True) as pbar:
-        for line in raw_in:
+    url_to_text: dict[str, str] = {}
+    with open(RAW_PATH, "r", encoding="utf-8") as raw_in:
+        for line in tqdm(raw_in, desc="Merging HTML → text per URL"):
             line = line.strip()
             if not line:
                 continue
@@ -302,36 +325,60 @@ def clean_to_sample() -> None:
                 continue
 
             html = row.get("html") or ""
-            url = row.get("url") or ""
-            if not html:
+            url = (row.get("url") or "").strip()
+            if not html or not url:
                 continue
 
-            text = extract_text_from_html(html, url)
-            if not text:
-                continue
-            if not is_quality_content(text):
+            url_n = _normalize_url(url)
+            text = extract_text_from_html(html, url_n)
+            if not text or not is_quality_content(text):
                 continue
 
-            h = mmh3.hash128(text)
-            if h in seen_hashes:
-                continue
-            seen_hashes.add(h)
+            prev = url_to_text.get(url_n)
+            if prev is None or len(text) > len(prev):
+                url_to_text[url_n] = text
 
-            payload = json.dumps({"text": text, "source_url": url}, ensure_ascii=False) + "\n"
-            b = len(payload.encode("utf-8"))
-            if sample_bytes + b > TARGET_SAMPLE_BYTES:
+    print(f"Unique URLs with usable text: {len(url_to_text)}")
+
+    seen_chunk_hashes: set[int] = set()
+    sample_bytes = 0
+    rows_out = 0
+
+    SAMPLE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if SAMPLE_PATH.exists():
+        SAMPLE_PATH.unlink()
+
+    with open(SAMPLE_PATH, "w", encoding="utf-8") as out, tqdm(
+        desc="Cleaning to sample", unit="B", unit_scale=True
+    ) as pbar:
+        for url in sorted(url_to_text.keys()):
+            text = url_to_text[url]
+            for chunk in _chunk_text(text, CHUNK_SIZE, CHUNK_OVERLAP):
+                h = mmh3.hash128(chunk)
+                if h in seen_chunk_hashes:
+                    continue
+                seen_chunk_hashes.add(h)
+
+                payload = json.dumps({"text": chunk, "source_url": url}, ensure_ascii=False) + "\n"
+                b = len(payload.encode("utf-8"))
+                if sample_bytes + b > TARGET_SAMPLE_BYTES:
+                    break
+
+                out.write(payload)
+                sample_bytes += b
+                rows_out += 1
+                pbar.update(b)
+
+            if sample_bytes >= TARGET_SAMPLE_BYTES:
                 break
-
-            out.write(payload)
-            sample_bytes += b
-            rows_out += 1
-            pbar.update(b)
 
     print(f"Sample: {sample_bytes / (1024**2):.2f} MB, {rows_out} lines -> {SAMPLE_PATH}")
     if sample_bytes < TARGET_SAMPLE_BYTES * 0.85:
         print(
-            "Warning: sample is below the target size. The site may have limited unique text after dedupe; "
-            "run more raw passes (increase COMMANDO_MAX_PASSES / raw size) or relax filters."
+            "Note: COMMANDO_SAMPLE_MB is an upper bound. One company site rarely yields tens of MB of "
+            "**unique** extractable text; a multi-GB raw file mostly repeats the same HTML across passes. "
+            "To capture more pages, raise COMMANDO_DISCOVERY_CAP / COMMANDO_SITEMAP_CAP, or relax "
+            "COMMANDO_MIN_TEXT_LEN / COMMANDO_JSONLD_BRACE_MAX."
         )
 
 

@@ -52,7 +52,7 @@ SEED_URL = "https://commandonetworks.com/"
 MAX_PAGES = int(os.environ.get("CRAWL_MAX_PAGES", "120"))
 SITEMAP_CAP = int(os.environ.get("COMMANDO_SITEMAP_CAP", "5000"))
 REQUEST_DELAY_SEC = float(os.environ.get("CRAWL_DELAY_SEC", "1.0"))
-MIN_TEXT_LEN = 80
+MIN_TEXT_LEN = int(os.environ.get("COMMANDO_MIN_TEXT_LEN", "80"))
 USER_AGENT = "CommandoRAGBot/1.0 (+educational; contact: your-email)"
 
 _session = requests.Session()
