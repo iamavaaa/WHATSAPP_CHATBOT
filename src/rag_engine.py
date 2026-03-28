@@ -44,8 +44,12 @@ class RAGEngine:
                     model_name=os.getenv("LOCAL_EMBED_MODEL", "all-MiniLM-L6-v2")
                 )
                 return
+            logger.warning(
+                "USE_PINECONE=true but PINECONE_API_KEY or PINECONE_INDEX_NAME is missing; "
+                "falling back to Chroma when USE_LOCAL_VECTOR_DB allows it."
+            )
 
-        # Fallback: local vector DB (useful for local development)
+        # Fallback: local vector DB (dev only; not for ephemeral production disks)
         render_env = os.getenv("RENDER", "")
         use_local_vector_default = "false" if render_env else "true"
         use_local_vector = os.getenv("USE_LOCAL_VECTOR_DB", use_local_vector_default).lower() == "true"

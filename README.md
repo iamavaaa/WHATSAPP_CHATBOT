@@ -50,15 +50,17 @@ Tune `COMMANDO_TARGET_RAW_GB`, `COMMANDO_SAMPLE_MB`, `CRAWL_DELAY_SEC`, `COMMAND
 
 ## Step 2: Pinecone Vector Database
 
-This project supports Pinecone as a managed vector database for deployment environments.
+**Use Pinecone** for real deployments (Render, Railway, etc.): the index stays in the cloud and survives redeploys. Chroma (`data/chroma_db`) is only a **local fallback** if you set `USE_PINECONE=false`.
 
 ### 1) Create and Populate Pinecone Index
 
 Set env vars locally in `.env`:
 
 ```bash
+USE_PINECONE=true
 PINECONE_API_KEY=your_pinecone_api_key
 PINECONE_INDEX_NAME=whatsapp-rag-index-384
+RAG_DATA_JSONL=data/commando_networks.jsonl
 GOOGLE_API_KEY=your_gemini_api_key
 LOCAL_EMBED_MODEL=all-MiniLM-L6-v2
 ```
