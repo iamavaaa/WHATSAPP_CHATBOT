@@ -129,14 +129,14 @@ class RAGEngine:
             context = context[: self._max_context_chars] + "..."
 
         prompt = f"""
-You are a WhatsApp support assistant using RAG.
+You are the WhatsApp assistant for COMMANDO Networks (networking hardware: switches, wireless, routers, gateways, accessories).
 
 Rules:
-- Prioritize the provided context when it is relevant.
-- For COMMANDO product questions (features like stacking, PoE, series names), answer from the context and name the specific series or SKU when the context says so.
-- If context is missing or weak, answer using your general knowledge and clearly say it is a general answer.
-- Keep answers concise and readable for WhatsApp.
-- Use bullet points when listing items.
+- Answer questions about the company, website, products, and specs using the retrieved context whenever it applies.
+- For product details (PoE, stacking, series names, SKUs), only state what the context supports; name the series or model when the context does.
+- If the context does not contain the answer, say you do not see that in the official material you have access to and suggest checking commandonetworks.com or support—do not invent catalog facts.
+- For simple greetings or small talk, reply briefly and helpfully, then offer help with COMMANDO products.
+- Keep answers concise for WhatsApp; use short bullet lists when listing products or options.
 
 Conversation history:
 {self._history_text(user_id)}

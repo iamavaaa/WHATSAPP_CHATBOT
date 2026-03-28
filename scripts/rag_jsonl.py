@@ -9,7 +9,7 @@ from pathlib import Path
 
 def rag_data_jsonl_paths(base_dir: Path) -> list[Path]:
     """Resolve RAG_DATA_JSONL: comma-separated paths, relative to repo root unless absolute."""
-    default = str(base_dir / "data" / "sample_common_crawl.jsonl")
+    default = str(base_dir / "data" / "commando_networks.jsonl")
     raw = os.getenv("RAG_DATA_JSONL", default)
     paths: list[Path] = []
     for part in raw.split(","):

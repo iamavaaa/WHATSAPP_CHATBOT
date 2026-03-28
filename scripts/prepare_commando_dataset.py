@@ -6,8 +6,8 @@ Parsing stack:
   - Cleaning raw HTML: trafilatura.extract first; if empty, BeautifulSoup fallback on
     main/article/body after stripping noise tags.
 
-Mirrors the Common Crawl workflow in this repo:
-  1) Collect ~2–3GB of raw material (full HTML per fetch, multiple passes over the site).
+Pipeline:
+  1) Collect a large raw HTML corpus (multi-pass over the same URLs to reach COMMANDO_TARGET_RAW_GB if needed).
   2) Clean, quality-filter, merge by URL, chunk text, write JSONL up to COMMANDO_SAMPLE_MB (cap).
 
 Respect robots.txt and rate limits. Review site terms before running.
