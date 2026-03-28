@@ -3,6 +3,8 @@ Sanity-check configuration before running the app or building the index.
 
 Loads `.env` from the repository root (parent of `scripts/`). Does not print secrets.
 
+On a host that only runs the API (no JSONL on disk), set VERIFY_SKIP_RAG_FILES=1.
+
 Usage (from repo root):
   python scripts/verify_setup.py
 """
@@ -27,19 +29,31 @@ def main() -> int:
         if not (os.getenv(name) or "").strip():
             failures.append(f"Missing or empty: {name}")
 
-    rag_raw = (os.getenv("RAG_DATA_JSONL") or "").strip()
-    if not rag_raw:
-        warnings.append("RAG_DATA_JSONL unset (build script will default to data/commando_networks.jsonl)")
-        rag_raw = str(ROOT / "data" / "commando_networks.jsonl")
+    skip_rag_files = (os.getenv("VERIFY_SKIP_RAG_FILES", "") or "").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    if skip_rag_files:
+        warnings.append(
+            "VERIFY_SKIP_RAG_FILES set: skipping JSONL file checks (use on deploy hosts without corpus files)"
+        )
+    else:
+        rag_raw = (os.getenv("RAG_DATA_JSONL") or "").strip()
+        if not rag_raw:
+            warnings.append(
+                "RAG_DATA_JSONL unset (build script will default to data/commando_networks.jsonl)"
+            )
+            rag_raw = str(ROOT / "data" / "commando_networks.jsonl")
 
-    for part in rag_raw.split(","):
-        part = part.strip()
-        if not part:
-            continue
-        p = Path(part)
-        path = p if p.is_absolute() else (ROOT / p)
-        if not path.is_file():
-            failures.append(f"RAG JSONL not found: {path}")
+        for part in rag_raw.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            p = Path(part)
+            path = p if p.is_absolute() else (ROOT / p)
+            if not path.is_file():
+                failures.append(f"RAG JSONL not found: {path}")
 
     use_pc = (os.getenv("USE_PINECONE", "true") or "").lower() == "true"
     if use_pc:

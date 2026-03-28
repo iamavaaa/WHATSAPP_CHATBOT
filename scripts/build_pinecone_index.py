@@ -10,7 +10,7 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(BASE_DIR / ".env")
 
 from rag_jsonl import load_texts_from_jsonl_files, rag_data_jsonl_paths
-INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "whatsapp-rag-index")
+INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "whatsapp-rag-index-384")
 PINECONE_NAMESPACE = os.getenv("PINECONE_NAMESPACE", "")
 
 

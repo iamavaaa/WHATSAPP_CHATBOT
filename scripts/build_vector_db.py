@@ -10,7 +10,9 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(BASE_DIR / ".env")
 
 from rag_jsonl import load_texts_from_jsonl_files, rag_data_jsonl_paths
-CHROMA_DB_DIR = BASE_DIR / "data" / "chroma_db"
+
+_chroma = Path(os.getenv("CHROMA_DB_DIR", "data/chroma_db"))
+CHROMA_DB_DIR = _chroma if _chroma.is_absolute() else (BASE_DIR / _chroma)
 
 
 def build_vector_db():
@@ -47,7 +49,9 @@ def build_vector_db():
     
     # Using Local HuggingFace Embeddings instead of Google API
     # This is FREE, runs locally, and avoids API rate limits!
-    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    embeddings = HuggingFaceEmbeddings(
+        model_name=os.getenv("LOCAL_EMBED_MODEL", "all-MiniLM-L6-v2")
+    )
     
     # We build and save the database locally to the CHROMA_DB_DIR
     vectorstore = Chroma.from_documents(

@@ -82,6 +82,8 @@ From repo root (checks `.env` and JSONL paths; optional Pinecone index hint):
 python scripts/verify_setup.py
 ```
 
+On a deploy machine with no corpus files, only API keys matter: `VERIFY_SKIP_RAG_FILES=1 python scripts/verify_setup.py`
+
 ## Step 3: Run Flask + Twilio + Gemini
 
 1. From repo root:

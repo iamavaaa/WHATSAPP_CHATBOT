@@ -1,1 +1,1 @@
-
+"""WhatsApp RAG application package."""

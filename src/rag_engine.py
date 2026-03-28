@@ -58,12 +58,22 @@ class RAGEngine:
         use_local_vector = os.getenv("USE_LOCAL_VECTOR_DB", use_local_vector_default).lower() == "true"
         if use_local_vector:
             chroma_dir = os.getenv("CHROMA_DB_DIR", "data/chroma_db")
-            embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+            chroma_path = Path(chroma_dir)
+            if not chroma_path.is_absolute():
+                chroma_path = _REPO_ROOT / chroma_path
+            embed_model = os.getenv("LOCAL_EMBED_MODEL", "all-MiniLM-L6-v2")
+            embeddings = HuggingFaceEmbeddings(model_name=embed_model)
             vector_db = Chroma(
-                persist_directory=chroma_dir,
+                persist_directory=str(chroma_path),
                 embedding_function=embeddings,
             )
             self._retriever = vector_db.as_retriever(search_kwargs={"k": 4})
+
+        if self._pinecone_index is None and self._retriever is None:
+            logger.error(
+                "No vector store is active (check Pinecone env vars or set USE_PINECONE=false "
+                "with a valid CHROMA_DB_DIR for local Chroma). Replies will not use retrieval."
+            )
 
     def _fallback_from_context(self, docs: list[str]) -> str:
         """
