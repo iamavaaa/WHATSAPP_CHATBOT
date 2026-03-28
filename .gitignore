@@ -28,6 +28,7 @@ Thumbs.db
 
 # Data and vector DB artifacts
 data/*.jsonl
+!data/commando_curated_facts.jsonl
 data/chroma_db/
 
 # Build / packaging artifacts

@@ -11,4 +11,8 @@ flask
 python-dotenv
 twilio
 gunicorn
+requests
+beautifulsoup4
+trafilatura
+langchain-text-splitters
 

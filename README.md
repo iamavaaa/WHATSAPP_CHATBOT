@@ -29,6 +29,25 @@ To achieve this efficiently, we use a streaming approach with the Hugging Face `
 
 **Note on Architecture:** The script will generate a full 2.5GB file (`cleaned_common_crawl.jsonl`) to satisfy the data engineering requirement. However, embedding 2.5GB of text for a local RAG demo is extremely resource-intensive and expensive. Therefore, the script also generates a 50MB `sample_common_crawl.jsonl` file. The Vector Database in this project is populated using this smaller sample to keep the demo fast, cost-effective, and easy for evaluators to run locally.
 
+**Common Crawl vs the company website:** Common Crawl is a periodic snapshot of *many* sites. A specific domain like [commandonetworks.com](https://commandonetworks.com/) may appear in some crawls or not, and pages may be stale or incomplete. For a WhatsApp bot that must reflect **this company’s current site**, treat the **live crawl** (`prepare_commando_dataset.py` / `crawl_commando_site.py`) as the real product dataset—not C4.
+
+### Company website corpus ([commandonetworks.com](https://commandonetworks.com/))
+
+Discovery uses the **live** `robots.txt` `Sitemap:` entries and `sitemap.xml` (plus link BFS) so product and detail URLs are less likely to be missed.
+
+To mirror the same pattern (large raw crawl → ~50MB cleaned JSONL for RAG), run from the **repository root**:
+
+```bash
+pip install -r requirements.txt
+python scripts/prepare_commando_dataset.py
+```
+
+This writes `data/raw_commando_crawl.jsonl` (target ~2.5GB of HTML, built with multiple polite passes over discovered URLs) and `data/commando_networks.jsonl` (deduplicated, filtered text up to ~50MB). Set `RAG_DATA_JSONL=data/commando_networks.jsonl` for indexing.
+
+Optional: add **`data/commando_curated_facts.jsonl`** to `RAG_DATA_JSONL` (comma-separated) only if you need guaranteed retrieval for facts that never appear as plain text on the site.
+
+Tune `COMMANDO_TARGET_RAW_GB`, `COMMANDO_SAMPLE_MB`, `CRAWL_DELAY_SEC`, `COMMANDO_MAX_PASSES`, and `COMMANDO_SITEMAP_CAP` via environment variables if needed.
+
 ## Step 2: Pinecone Vector Database
 
 This project supports Pinecone as a managed vector database for deployment environments.

@@ -1,4 +1,3 @@
-import json
 import os
 from pathlib import Path
 
@@ -10,27 +9,11 @@ from pinecone import Pinecone
 
 load_dotenv()
 
+from rag_jsonl import load_texts_from_jsonl_files, rag_data_jsonl_paths
+
 BASE_DIR = Path(__file__).resolve().parents[1]
-SAMPLE_FILE = BASE_DIR / "data" / "sample_common_crawl.jsonl"
 INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "whatsapp-rag-index")
 PINECONE_NAMESPACE = os.getenv("PINECONE_NAMESPACE", "")
-
-
-def load_documents() -> list[str]:
-    docs: list[str] = []
-    with open(SAMPLE_FILE, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                payload = json.loads(line)
-                text = payload.get("text", "").strip()
-                if text:
-                    docs.append(text)
-            except json.JSONDecodeError:
-                continue
-    return docs
 
 
 def ensure_index(pc: Pinecone) -> None:
@@ -57,7 +40,7 @@ def ensure_index(pc: Pinecone) -> None:
     if INDEX_NAME not in existing_names:
         raise RuntimeError(
             "Pinecone index not found. Create a SERVERLESS index first in Pinecone console "
-            f"with name='{INDEX_NAME}', dimension=1536, metric='cosine', then rerun this script. "
+            f"with name='{INDEX_NAME}', dimension=384 (for all-MiniLM-L6-v2), metric='cosine', then rerun this script. "
             f"Visible indexes={sorted(existing_names)}"
         )
 
@@ -66,13 +49,22 @@ def main() -> None:
     if not os.getenv("PINECONE_API_KEY"):
         raise ValueError("PINECONE_API_KEY is required to build Pinecone index.")
 
+    sample_paths = rag_data_jsonl_paths(BASE_DIR)
+    missing = [p for p in sample_paths if not p.is_file()]
+    if missing:
+        raise FileNotFoundError(
+            "RAG data file(s) not found: "
+            + ", ".join(str(p) for p in missing)
+            + ". Set RAG_DATA_JSONL (comma-separated) or run crawl / prepare scripts first."
+        )
+
     print("Connecting to Pinecone...")
     pc = Pinecone(api_key=os.environ["PINECONE_API_KEY"])
     ensure_index(pc)
     index = pc.Index(INDEX_NAME)
 
-    print("Loading documents...")
-    docs = load_documents()
+    print("Loading documents from:", ", ".join(str(p) for p in sample_paths))
+    docs = load_texts_from_jsonl_files(sample_paths)
     print(f"Loaded {len(docs)} records")
 
     print("Splitting text into chunks...")
