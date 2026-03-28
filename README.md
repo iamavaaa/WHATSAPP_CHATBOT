@@ -74,6 +74,14 @@ Create the index once in Pinecone (if missing):
 - Dimension: **384** (for `all-MiniLM-L6-v2`)
 - Metric: **cosine**
 
+### Verify configuration
+
+From repo root (checks `.env` and JSONL paths; optional Pinecone index hint):
+
+```bash
+python scripts/verify_setup.py
+```
+
 ## Step 3: Run Flask + Twilio + Gemini
 
 1. From repo root:
@@ -89,13 +97,19 @@ User (WhatsApp) → Twilio → Flask (`/whatsapp`) → Pinecone retrieval → Ge
 
 ## Deployment env (e.g. Render/Railway)
 
+Set the same variables as in `.env`. The host does **not** need your JSONL files if the **Pinecone index is already populated** (build locally or in CI, then deploy the app only).
+
 ```bash
 USE_PINECONE=true
 PINECONE_API_KEY=...
 PINECONE_INDEX_NAME=whatsapp-rag-index-384
+PINECONE_NAMESPACE=
 LOCAL_EMBED_MODEL=all-MiniLM-L6-v2
 GOOGLE_API_KEY=...
 GEMINI_MODEL=gemini-1.5-flash
+PORT=5000
 ```
 
-Rebuild the Pinecone index whenever you change `RAG_DATA_JSONL` files.
+`RAG_DATA_JSONL` is only needed when running **`build_pinecone_index.py`** (point it at your `commando_networks.jsonl` and optional `commando_curated_facts.jsonl`). Rebuild the index whenever those files change.
+
+**Start command:** `gunicorn src.app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120` (see `Procfile`).
