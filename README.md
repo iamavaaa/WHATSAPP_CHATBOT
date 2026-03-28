@@ -65,12 +65,16 @@ GOOGLE_API_KEY=your_gemini_api_key
 LOCAL_EMBED_MODEL=all-MiniLM-L6-v2
 ```
 
+Set `RAG_DATA_JSONL` to your JSONL files (e.g. `data/commando_networks.jsonl,data/commando_curated_facts.jsonl`). If it points only at the small curated file, the index will have very few vectors.
+
 Run:
 
 ```bash
 cd scripts
 python build_pinecone_index.py
 ```
+
+(`.env` is loaded from the **repository root** even when you run this from `scripts/`.)
 
 If the script says the index is missing, create it once in Pinecone Console:
 

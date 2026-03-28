@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 from flask import Flask, request
@@ -12,7 +13,8 @@ except ModuleNotFoundError:
     from rag_engine import RAGEngine
 
 
-load_dotenv()
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(_REPO_ROOT / ".env")
 
 app = Flask(__name__)
 rag = None

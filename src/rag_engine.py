@@ -1,5 +1,6 @@
-import os
 import logging
+import os
+from pathlib import Path
 from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
@@ -9,7 +10,9 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from pinecone import Pinecone
 
 
-load_dotenv()
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(_REPO_ROOT / ".env")
+
 logger = logging.getLogger(__name__)
 
 
